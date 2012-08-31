@@ -32,20 +32,20 @@ def fix(expression):
 # Evaluate mathematical expression from string
 def calculate(expression):
 	if contains(expression, '_\'\"[];'):
-		return 'no'
+		return 0
+
 	expression = expression.replace('^', '**')
 	fixed = fix(expression)
+
 	try:
 		result = eval(fixed, {"__builtins__": None}, safe_dict)
-		# if isinstance(result, float) and result.is_integer():
-		#	result = int(result)
-		# return result
 		if -1e-10 < result < 1e-10:
 			return 0
 		elif -1e-10 < int(result) - result < 1e-10:
 			return int(result)
 		else:
 			return result
+
 	except Exception, ex:
 		print ex
 		return 0

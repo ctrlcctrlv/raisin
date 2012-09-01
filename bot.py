@@ -13,6 +13,14 @@ from title import extract_url, get_title
 from utils import fetch_url
 from game import roll_dice, last_roll
 
+def start_bot():
+    load_scores()
+
+def end_bot():
+    execute('QUIT')
+    save_scores()
+    sys.exit()
+
 # Read line and execute commands
 def read_line(line):
     # Variables inside curly braces are optional
@@ -225,61 +233,83 @@ def read_line(line):
                         say(current_channel, 'Deposit is %s, cannot bet %s' % (deposit, wager))
                         return
 
-                    roll = roll_dice(sender)
-                    if roll == 1 or roll == 6:
+                    # Cannot bet if last roll was 1 or 6
+                    last = last_roll(sender)
+                    if last == 1 or last == 6:
                         say(current_channel, 'Last roll was' % last)
                         return
 
-                    if win:
-                        say(current_channel, '%s: %s, +%sC' % (sender, roll, wager))
-                        scores[sender][0] += wager
+                    roll = roll_dice(sender)
+                    # Won the bet
+                    if roll > last:
+                        wallet[sender] += wager
                         deposit -= wager
+                        balance = wallet[sender]
+                        say(current_channel, '%s: roll: %s, +%sC, balance: %sC' % (sender, roll, wager, balance))
+                    # Lost the bet
                     else:
-                        say(current_channel, '%s: %s, -%sC' % (sender, roll, wager))
-                        scores[sender][0] -= wager
-                        deposit += wager
+                        # User doesn't have enough money to pay
+                        if wager > wallet[sender]:
+                            deposit += wallet[sender]
+                        # User has enough money to pay
+                        else:
+                            deposit += wager
+                        
+                        wallet[sender] -= wager
+                        balance = wallet[sender]
+                        say(current_channel, '%s: roll: %s, -%sC, balance: %sC' % (sender, roll, wager, balance))
 
+                        # Kick if debt is greater than 10
+                        if wallet[sender] < -10:
+                            bot_kick(current_channel, sender, 'Debt')
+                            
             # Commands without parameters
             else:
                 # Roll
                 if said.find('@roll') == 0:
                     roll = roll_dice(sender)
-                    if roll == 1:
+                    # Roll 1, give 1C to deposit (if available)
+                    if roll == 1 and wallet[sender] > 0:
                         deposit += 1
-                        scores[sender][0] -= 1
-                        balance = scores[sender][0]
-                        say(current_channel, '%s: rolled %s, -1C, balance: %sC' % (sender, roll, balance))
+                        wallet[sender] -= 1
+                        balance = wallet[sender]
+                        say(current_channel, '%s: roll: %s, -1C, balance: %sC' % (sender, roll, balance))
+                    # Roll 6, get 1C from deposit (if available)
                     elif roll == 6 and deposit > 0:
                         deposit -= 1
-                        scores[sender][0] += 1
-                        balance = scores[sender][0]
-                        say(current_channel, '%s: rolled %s, +1C, balance: %sC' % (sender, roll, balance))
+                        wallet[sender] += 1
+                        balance = wallet[sender]
+                        say(current_channel, '%s: roll: %s, +1C, balance: %sC' % (sender, roll, balance))
                     else:
-                        say(current_channel, '%s: rolled %s' % (sender, roll))
+                        say(current_channel, '%s: roll: %s' % (sender, roll))
                             
                 # Check deposit
                 elif said.find('@deposit') == 0:
                     say(current_channel, 'Deposit: %s' % deposit)
 
+                # Return last roll
                 elif said.find('@last') == 0:
                     say(current_channel, '%s: Last roll: %s' % (sender, last_roll(sender)))
+                
+                # List all wallets
+                elif said.find('@wallets') == 0:
+                    say(current_channel, str(wallet))
+                
+                # List own balance
+                elif said.find('@balance') == 0:
+                    balance = wallet[sender]
+                    say(current_channel, '%s: balance: %sC' % (sender, balance))
 
             ## Owner commands ##
             if sender == owner:
                 # Disconnect
                 if said == '.quit':
-                    execute('QUIT')
-                    save_scores()
-                    sys.exit()
+                    end_bot()
 
                 # Print userlist
                 elif said.find('.users') == 0:
                     say(current_channel, str(users))
                 
-                # Print scores
-                elif said.find('.scores') == 0:
-                    say(current_channel, str(scores))
-
                 # Bot joins
                 elif said.find('.join') == 0:
                     channel = said.split()[1]
@@ -302,12 +332,17 @@ def read_line(line):
             execute('PONG %s' % line.split()[1])
 
 # Main loop
+start_bot()
 while 1:
     data = irc.recv(8192)
+
     for line in data.split('\r\n'):
         if len(line) > 0:
             print line
             try:
                 read_line(line)
+            except KeyboardInterrupt, SystemExit:
+                end_bot()
+                raise
             except Exception as derp: 
-                print derp
+                print ' [!] - %s' % derp

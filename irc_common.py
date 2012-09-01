@@ -16,11 +16,16 @@ logged_in = False
 users = {}
 
 # Game scores
-# scores['user'] = [coins, linkrace_score]
-scores = {}
+# wallet['user'] = coins
+wallet = {}
+
+# Linkrace scores
+# race['user'] = score
+races = {}
 
 # Game deposit
-deposit = 0
+deposit = 50
+
 
 # Send command to irc socket
 def execute(command):
@@ -32,7 +37,7 @@ def say(channel, message):
 
 # Add user to user dictionary
 def add_user(channel, name):
-    global scores
+    global wallet, races
 
     # Check if username has leading symbols (@, +, etc) and remove them
     if not name[0].isalnum():
@@ -44,8 +49,11 @@ def add_user(channel, name):
         users[channel] = set([name])
 
     # Add user to scores
-    if name not in scores:
-        scores[name] = [0, 0]
+    if name not in wallet:
+        wallet[name] = 5
+
+    if name not in races:
+        races[name] = 0
 
 # Remove user from users dictionary
 def remove_user(channel, name):
@@ -53,9 +61,10 @@ def remove_user(channel, name):
         users[channel].remove(name)
 
 # Kick user from channel
-def bot_kick(channel, user):
-    execute('KICK %s %s' % (channel, user))
+def bot_kick(channel, user, reason):
+    execute('KICK %s %s :%s' % (channel, user, reason))
     remove_user(channel, user)
+    deposit += 10
 
 # Load previous scores from file
 def load_scores():
@@ -80,7 +89,8 @@ def load_scores():
         coins = int(line.split()[1])
         linkrace_score = int(line.split()[2])
 
-        scores[user] = [coins, linkrace_score]
+        wallet[user] = coins
+        races[user] = linkrace_score
 
     scores_file.close()
 
@@ -100,8 +110,10 @@ def save_scores():
         sys.exit()
 
     scores_file.write(str(deposit) + '\n')
-    for user, score_list in scores.items():
-        line = "%s %s %s\n" % (user, score_list[0], score_list[1])
+
+    # interleaved_list = ('user', coins, linkrace_score)
+    for leave in zip(wallet.keys(), wallet.values(), races.values()):
+        line = "%s %s %s\n" % (leave[0], leave[1], leave[2])
         scores_file.write(line)
 
     scores_file.close()

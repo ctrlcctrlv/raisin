@@ -112,8 +112,8 @@ def save_scores():
     scores_file.write(str(deposit) + '\n')
 
     # interleaved_list = ('user', coins, linkrace_score)
-    for leave in zip(wallet.keys(), wallet.values(), races.values()):
-        line = "%s %s %s\n" % (leave[0], leave[1], leave[2])
+    for leaf in zip(wallet.keys(), wallet.values(), races.values()):
+        line = "%s %s %s\n" % (leaf[0], leaf[1], leaf[2])
         scores_file.write(line)
 
     scores_file.close()
